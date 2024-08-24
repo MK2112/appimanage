@@ -11,7 +11,7 @@ A CLI tool for seamless integration and management of AppImage programs on Linux
 ## Installation (WIP)
 
 ```bash
-git clone https://github.com/yourusername/appimanage.git
+git clone https://github.com/MK2112/appimanage.git
 cd appimanage
 pip install -e .
 ```
