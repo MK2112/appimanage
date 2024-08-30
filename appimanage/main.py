@@ -6,14 +6,17 @@ import argparse
 import subprocess
 import configparser
 from pathlib import Path
-from xdg import BaseDirectory
+from xdg_base_dirs import xdg_config_home, xdg_data_home
 
-CONFIG_INI = Path(BaseDirectory.xdg_config_home) / "appimanage" / "config.ini"
-MENU_DIR = Path(BaseDirectory.xdg_data_home) / "applications"
+CONFIG_INI = Path(xdg_config_home()) / "appimanage" / "config.ini"
+MENU_DIR = Path(xdg_data_home()) / "applications"
 
+# pip uninstall appimanage
+# pip cache purge
 
 def read_config():
     config = configparser.ConfigParser()
+    print(CONFIG_INI)
     if CONFIG_INI.exists():
         config.read(CONFIG_INI)
     return config
@@ -42,6 +45,20 @@ def set_appimage_dir(new_dir: str):
         update_desktop_entries(old_dir, new_dir)
 
     print(f"AppImage directory set to: {new_dir}")
+
+
+def unset_appimage_dir():
+    config = read_config()
+    old_dir = config.get("Settings", "AppImageDir", fallback=None)
+
+    if not old_dir:
+        print("AppImage directory is not set.")
+        return
+
+    config["Settings"] = {"AppImageDir": ""}
+    write_config(config)
+
+    print(f"AppImage directory unset from: {old_dir}")
 
 
 def move_appimages(old_dir: Path, new_dir: Path):
@@ -146,6 +163,12 @@ def main():
     parser.add_argument(
         "--startmenu", action="store_true", help="Create start menu entries"
     )
+    parser.add_argument(
+        "--desktop", help="Create a desktop entry for an AppImage"
+    )
+    parser.add_argument(
+        "--unset", help="Unset the AppImage directory", action="store_true"
+    )
     args = parser.parse_args()
 
     # Make sure config dir exists
@@ -155,10 +178,11 @@ def main():
     if args.set:
         set_appimage_dir(args.set)
 
+    if args.unset:
+        unset_appimage_dir()
+
     if args.startmenu:
         create_start_menu_entries()
-    else:
-        parser.print_help()
 
 
 if __name__ == "__main__":
