@@ -8,7 +8,7 @@ setup(
     version="0.0.1",
     packages=find_packages(),
     install_requires=[
-        "xdg",
+        "xdg-base-dirs",
     ],
     entry_points={
         "console_scripts": ["appimanage=appimanage.main:main"],
