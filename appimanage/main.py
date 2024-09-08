@@ -46,6 +46,22 @@ def set_appimage_dir(new_dir: str):
 
     print(f"AppImage directory set to: {new_dir}")
 
+def list_appimages():
+    config = read_config()
+    appimage_dir = config.get("Settings", "AppImageDir", fallback=None)
+
+    if not appimage_dir:
+        print("AppImage directory is not set.")
+        return
+
+    appimage_dir = Path(appimage_dir)
+    if not appimage_dir.exists():
+        print(f"AppImage directory {appimage_dir} does not exist.")
+        return
+
+    print("AppImages:")
+    for appimage in appimage_dir.glob("*.AppImage"):
+        print(f"  {appimage.name}")
 
 def unset_appimage_dir():
     config = read_config()
@@ -167,14 +183,17 @@ def main():
         "--desktop", help="Create a desktop entry for an AppImage"
     )
     parser.add_argument(
-        "--unset", help="Unset the AppImage directory", action="store_true"
+        "--unset", help="Unset the previously set AppImage directory", action="store_true"
     )
+    parser.add_argument(
+        "--list", help="List all currently managed AppImages", action="store_true"
+    )
+
     args = parser.parse_args()
 
-    # Make sure config dir exists
     CONFIG_INI.parent.mkdir(parents=True, exist_ok=True)
 
-    # Allow for this to be valid too: "appimanage --set /path/to/dir --startmenu"
+    # I really want this to be valid too: "appimanage --set /path/to/dir --startmenu"
     if args.set:
         set_appimage_dir(args.set)
 
@@ -183,7 +202,9 @@ def main():
 
     if args.startmenu:
         create_start_menu_entries()
-
+    
+    if args.list:
+        list_appimages()
 
 if __name__ == "__main__":
     main()
