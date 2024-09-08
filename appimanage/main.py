@@ -11,8 +11,9 @@ from xdg_base_dirs import xdg_config_home, xdg_data_home
 CONFIG_INI = Path(xdg_config_home()) / "appimanage" / "config.ini"
 MENU_DIR = Path(xdg_data_home()) / "applications"
 
-# pip uninstall appimanage
+# pip uninstall appimanage -y
 # pip cache purge
+# pip install -e .
 
 def read_config():
     config = configparser.ConfigParser()
@@ -176,19 +177,10 @@ def create_start_menu_entries():
 def main():
     parser = argparse.ArgumentParser(description="Manage AppImage programs")
     parser.add_argument("--set", help="Set the AppImage directory")
-    parser.add_argument(
-        "--startmenu", action="store_true", help="Create start menu entries"
-    )
-    parser.add_argument(
-        "--desktop", help="Create a desktop entry for an AppImage"
-    )
-    parser.add_argument(
-        "--unset", help="Unset the previously set AppImage directory", action="store_true"
-    )
-    parser.add_argument(
-        "--list", help="List all currently managed AppImages", action="store_true"
-    )
-
+    parser.add_argument("--startmenu", action="store_true", help="Create start menu entries")
+    parser.add_argument("--desktop", help="Create a desktop entry for an AppImage")
+    parser.add_argument("--unset", help="Unset the previously set AppImage directory", action="store_true")
+    parser.add_argument("--list", help="List all currently managed AppImages", action="store_true")
     args = parser.parse_args()
 
     CONFIG_INI.parent.mkdir(parents=True, exist_ok=True)

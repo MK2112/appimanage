@@ -34,9 +34,10 @@ appimanage --startmenu
 
 ## Roadmap
 
-- [ ] Implement `--list` to display all managed AppImages
-- [ ] Add `--remove` functionality for specific AppImage removal
-- [ ] Develop `--update` for bulk AppImage integration updates
+- [x] `--list` to display all managed AppImages
+- [ ] `--add` and `--remove` for specific AppImage (de-)listing
+- [ ] `--startmenu` to link all managed AppImages to the start menu
+- [ ] `--update` for bulk AppImage integration updates
 - [ ] Expand distribution compatibility
 - [ ] Implement automated testing
 - [ ] (Optional) Publish to PyPI for easier installation
