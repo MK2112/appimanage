@@ -235,12 +235,12 @@ def remove_appimage(appimage):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Manage AppImage programs")
+    parser = argparse.ArgumentParser(description="Unified managing for AppImages")
     parser.add_argument("--set", metavar="PATH", help="Set the AppImage directory")
     parser.add_argument(
         "--unset",
         action="store_true",
-        help="Unset the previously set AppImage directory",
+        help="Unset the AppImage directory",
     )
     parser.add_argument(
         "--list", action="store_true", help="List all currently managed AppImages"
@@ -248,7 +248,7 @@ def main():
     parser.add_argument(
         "--startmenu",
         action="store_true",
-        help="Create start menu entries, remove for AppImages not existing anymore",
+        help="Create start menu entries for all AppImages",
     )
     parser.add_argument(
         "--move",
@@ -256,10 +256,10 @@ def main():
         help="Move AppImages from old directory to new one",
     )
     parser.add_argument(
-        "--desktop", action="store_true", help="Create desktop icons for all AppImages"
+        "--desktop", action="store_true", help="Create desktop shortcuts for all AppImages"
     )
     parser.add_argument(
-        "--remove", metavar="APPIMAGE", help="Remove an AppImage and its links"
+        "--remove", metavar="APPIMAGE", help="Delete a specific AppImage and its links"
     )
 
     args, _ = parser.parse_known_args()
