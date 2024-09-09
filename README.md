@@ -30,14 +30,17 @@ appimanage --startmenu
 
 ## Supported Distributions
 
-- Tested on Debian-based distributions (Ubuntu, Linux Mint, etc.)
+Tested on Debian-based distributions.
 
 ## Roadmap
 
+- [x] `--set` to set the AppImage directory 
+- [x] `--unset` to forget the AppImage directory
 - [x] `--list` to display all managed AppImages
-- [ ] `--add` and `--remove` for specific AppImage (de-)listing
-- [ ] `--startmenu` to link all managed AppImages to the start menu
-- [ ] `--update` for bulk AppImage integration updates
-- [ ] Expand distribution compatibility
+- [x] `--startmenu` to link all managed AppImages to the start menu
+- [x] `--desktop` to create a desktop shortcut for a specific AppImage
+- [x] `--remove` to set the AppImage directory
+- [x] `--move` to enable auto moving of AppImages and link updates
 - [ ] Implement automated testing
-- [ ] (Optional) Publish to PyPI for easier installation
+- [ ] Expand distribution compatibility
+- [ ] (Optional) Publish to PyPI (ease of use, UX or whatever)
