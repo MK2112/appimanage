@@ -5,7 +5,7 @@ A CLI tool for seamless integration and management of AppImage programs on Linux
 ## Features
 
 - Set a dedicated directory for AppImage files
-- Create .desktop entries for AppImages for easy application launching
+- Create `.desktop` entries for AppImages for easy application launching
 - Manage and update AppImage integrations
 
 ## Installation (WIP)
