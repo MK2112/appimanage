@@ -1,6 +1,6 @@
 # appimanage
 
-A CLI tool for seamless integration and management of AppImage programs on Linux systems.
+A CLI tool for integration and management of AppImage programs on Linux systems.
 
 ## Features
 
