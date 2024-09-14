@@ -13,6 +13,10 @@ setup(
     entry_points={
         "console_scripts": ["appimanage=appimanage.main:main"],
     },
+    tests_require=[
+        "pytest",
+    ],
+    test_suite="tests",
     author="MK2112",
     author_email="apps.mk2112@gmail.com",
     description="CLI-based integration manager for AppImages on Linux",

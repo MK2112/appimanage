@@ -41,7 +41,7 @@ Tested on Debian-based distributions.
 - [x] `--desktop` to create a desktop shortcut for a specific AppImage
 - [x] `--remove` to set the AppImage directory
 - [x] `--move` to enable auto moving of AppImages and link updates
-- [ ] Implement automated testing
+- [x] Setup CI/CD
 - [ ] Expand distribution compatibility
 - [ ] `--update` to update all managed AppImages (requiring some sort of versioning and web referencing)
 - [ ] (Optional) Publish to PyPI (ease of use, UX or whatever)

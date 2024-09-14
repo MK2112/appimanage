@@ -1,3 +1,4 @@
 
 appimanage.egg-info/*
 appimanage/__pycache__/*
+appimanage/tests/__pycache__/*
