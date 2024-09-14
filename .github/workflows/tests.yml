@@ -17,5 +17,5 @@ jobs:
         pip install -e .[test]
     - name: Run tests
       run: |
-        cd $GITHUB_WORKSPACE/appimanage
+        cd appimanage
         pytest appimanage/tests
