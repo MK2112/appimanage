@@ -44,4 +44,4 @@ Tested on Debian-based distributions.
 - [x] Setup CI/CD
 - [ ] Expand distribution compatibility
 - [ ] `--update` to update all managed AppImages (requiring some sort of versioning and web referencing)
-- [ ] (Optional) Publish to PyPI (ease of use, UX or whatever)
+- [ ] (Optional) Publish to PyPI
