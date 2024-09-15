@@ -26,6 +26,10 @@ from appimanage.main import (
     remove_appimage,
 )
 
+# pip install -e .
+# pip install pytest
+# pytest appimanage/tests
+
 class TestAppimanage(unittest.TestCase):
 
     def setUp(self):
