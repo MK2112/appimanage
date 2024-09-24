@@ -42,6 +42,6 @@ Tested on Debian-based distributions.
 - [x] `--remove` to set the AppImage directory
 - [x] `--move` to enable auto moving of AppImages and link updates
 - [x] Setup CI/CD
-- [ ] Expand distribution compatibility
+- [x] Expand distribution compatibility
 - [ ] `--update` to update all managed AppImages (requiring some sort of versioning and web referencing)
 - [ ] (Optional) Publish to PyPI

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import distro
 import shutil
 import argparse
 import subprocess
@@ -8,8 +9,15 @@ import configparser
 from pathlib import Path
 from xdg_base_dirs import xdg_config_home, xdg_data_home
 
+
+debian_based = ["ubuntu", "debian", "linuxmint", "pop", "zorin", "elementary", "kali"]
+
 CONFIG_INI = Path(xdg_config_home()) / "appimanage" / "config.ini"
-MENU_DIR = Path(xdg_data_home()) / "applications"
+
+if distro.id() in debian_based:
+    MENU_DIR = Path(xdg_data_home()) / "applications"
+else:
+    MENU_DIR = Path("/usr/share/applications")
 
 # pip uninstall appimanage -y
 # pip cache purge
