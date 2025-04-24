@@ -1,0 +1,9 @@
+# Core dependencies for appimanage
+xdg-base-dirs
+configparser
+argparse
+pathlib
+distro
+
+# Testing dependencies
+pytest
