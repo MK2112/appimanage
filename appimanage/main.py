@@ -32,6 +32,7 @@ def read_config() -> configparser.ConfigParser:
 
 
 def write_config(config: configparser.ConfigParser) -> None:
+    CONFIG_INI.parent.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_INI, "w") as configfile:
         config.write(configfile)
 
@@ -95,11 +96,12 @@ def unset_dir():
 
 
 def list_appimages():
+    """List all managed AppImages in the configured directory."""
     config = read_config()
     appimage_dir = config.get("Settings", "AppImageDir", fallback=None)
 
     if not appimage_dir:
-        print("[!] No AppImage directory not set. Set with --set first.")
+        print("[!] No AppImage directory set. Set with --set first.")
         return
 
     appimage_dir = Path(appimage_dir)
@@ -107,8 +109,13 @@ def list_appimages():
         print(f"[!] AppImage directory {appimage_dir} does not exist.")
         return
 
+    appimages = get_appimages(appimage_dir)
+    if not appimages:
+        print("[~] No AppImages found in the directory.")
+        return
     print("[~] AppImages:")
-    print(f"\t{path}" for path in get_appimages(appimage_dir))
+    for path in appimages:
+        print(f"\t{path}")
 
 
 def move_appimages(old_dir: Path, new_dir: Path):
@@ -143,9 +150,9 @@ def update_shortcuts(old_dir: str, new_dir: str, shortcut_dir: Path):
 
 
 def get_appimage_icon(appimage_path: Path):
+    """Extract icon from AppImage, fallback to default if extraction fails."""
     icon = "application-x-executable"
     extract_dir = appimage_path.parent / "squashfs-root"
-
     try:
         subprocess.run(
             [str(appimage_path), "--appimage-extract"],
@@ -153,7 +160,6 @@ def get_appimage_icon(appimage_path: Path):
             capture_output=True,
             cwd=str(appimage_path.parent),
         )
-
         for ext in [".png", ".svg", ".xpm", ".ico"]:
             icon_files = list(extract_dir.rglob(f"*{ext}")) + list(
                 extract_dir.rglob(f"*{ext.upper()}")
@@ -163,86 +169,108 @@ def get_appimage_icon(appimage_path: Path):
                 shutil.copy2(icon_files[0], icon_dest)
                 icon = str(icon_dest)
                 break
-
-    except subprocess.CalledProcessError:
-        print(
-            f"Failed to extract AppImage icon for {appimage_path}, fallback to default"
-        )
-
+    except Exception as e:
+        print(f"[!] Failed to extract AppImage icon for {appimage_path}: {e}. Fallback to default.")
     finally:
         if extract_dir.exists():
-            shutil.rmtree(extract_dir)
-
+            try:
+                shutil.rmtree(extract_dir)
+            except Exception as e:
+                print(f"[!] Failed to clean up extracted icon directory: {e}")
     return icon
 
 
-def create_shortcut(appimage_path: Path, shortcut_dir: Path):
+def create_shortcut(appimage_path: Path, shortcut_dir: Path, force: bool = False):
+    """Create a .desktop shortcut for the given AppImage in the given directory."""
     name = appimage_path.stem
     icon = get_appimage_icon(appimage_path)
     shortcut = shortcut_dir / f"{name}.desktop"
-    if shortcut.exists():
+    try:
+        shortcut_dir.mkdir(parents=True, exist_ok=True)
+        if shortcut.exists():
+            if force:
+                shortcut.unlink()
+            else:
+                print(f"[~] Shortcut {shortcut} already exists. Use --force to overwrite.")
+                return
+        entry_content = f"""[Desktop Entry]\nName={name}\nExec={appimage_path}\nIcon={icon}\nType=Application\nCategories=Utility;\n"""
+        shortcut.write_text(entry_content)
+        os.chmod(shortcut, 0o755)
+        print(f"[~] Created shortcut: {shortcut}")
+    except Exception as e:
+        print(f"[!] Failed to create shortcut for {appimage_path}: {e}")
+
+
+def create_start_menu_shortcuts(force: bool = False):
+    """Create start menu shortcuts for all AppImages."""
+    appimage_dir = get_dir()
+    if not appimage_dir:
+        print("[!] No AppImage directory set.")
         return
-    entry_content = f"""[Desktop Entry]
-                    Name={name}
-                    Exec={appimage_path}
-                    Icon={icon}
-                    Type=Application
-                    Categories=Utility;
-                    """
-    shortcut.write_text(entry_content)
-    os.chmod(shortcut, 0o755)
-
-
-def create_start_menu_shortcuts():
-    appimage_dir = get_dir()
-    # Keeping track of this history-wise is not really needed, just override
     for appimage in get_appimages(appimage_dir):
-        create_shortcut(appimage, MENU_DIR)
+        create_shortcut(appimage, MENU_DIR, force=force)
 
 
-def create_desktop_shortcuts():
+def create_desktop_shortcuts(force: bool = False):
+    """Create desktop shortcuts for all AppImages."""
     appimage_dir = get_dir()
-    desktop_dir = Path(
-        subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip()
-    )
-    # Keeping track of this history-wise is not really needed, we just override
+    if not appimage_dir:
+        print("[!] No AppImage directory set.")
+        return
+    try:
+        desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
+    except Exception as e:
+        print(f"[!] Could not determine desktop directory: {e}")
+        return
     for appimage in get_appimages(appimage_dir):
-        create_shortcut(appimage, desktop_dir)
+        create_shortcut(appimage, desktop_dir, force=force)
 
 
 def remove_shortcut(appimage: str, shortcut_dir: Path):
+    """Remove a .desktop shortcut for the given appimage name from the directory."""
     shortcut = shortcut_dir / f"{appimage}.desktop"
-    if shortcut.exists():
-        shortcut.unlink()
+    try:
+        if shortcut.exists():
+            shortcut.unlink()
+            print(f"[~] Removed shortcut: {shortcut}")
+        else:
+            print(f"[~] Shortcut {shortcut} does not exist.")
+    except Exception as e:
+        print(f"[!] Failed to remove shortcut {shortcut}: {e}")
 
 
 def remove_appimage(appimage):
+    """Remove the specified AppImage and its shortcuts."""
     appimage_dir = get_dir()
+    if not appimage_dir:
+        print("[!] No AppImage directory set.")
+        return
     appimages = get_appimages(appimage_dir)
-
+    found = False
     for path in appimages:
         # path.stem :: /path/to/XYZ.AppImage -> XYZ
-        if path.stem.lower() == appimage.lower():
-            # Remove .AppImage
-            appimage = path.stem
-            path.unlink()
-            # Remove links from start menu and desktop
-            remove_shortcut(appimage, MENU_DIR)
-            remove_shortcut(
-                appimage,
-                Path(
-                    subprocess.check_output(["xdg-user-dir", "DESKTOP"])
-                    .decode()
-                    .strip()
-                ),
-            )
-            print(f"Removed {appimage}")
+        if Path(path).stem.lower() == appimage.lower():
+            found = True
+            appimage_name = Path(path).stem
+            try:
+                Path(path).unlink()
+                print(f"[~] Removed AppImage: {path}")
+            except Exception as e:
+                print(f"[!] Failed to remove AppImage {path}: {e}")
+            remove_shortcut(appimage_name, MENU_DIR)
+            try:
+                desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
+                remove_shortcut(appimage_name, desktop_dir)
+            except Exception as e:
+                print(f"[!] Failed to remove desktop shortcut: {e}")
             break
-
-    print(f"{appimage} not found in AppImage directory")
+    if not found:
+        print(f"{appimage} not found in AppImage directory")
 
 
 def main():
+    """Main CLI entrypoint for appimanage."""
+    import logging
     parser = argparse.ArgumentParser(description="Unified managing for AppImages")
     parser.add_argument("--set", metavar="PATH", help="Set the AppImage directory")
     parser.add_argument(
@@ -269,21 +297,40 @@ def main():
     parser.add_argument(
         "--remove", metavar="APPIMAGE", help="Delete a specific AppImage and its links"
     )
+    parser.add_argument(
+        "--update", action="store_true", help="Update all managed AppImages (not implemented)"
+    )
+    parser.add_argument(
+        "--debug", action="store_true", help="Enable debug logging"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Force overwrite of existing shortcuts"
+    )
 
     args, _ = parser.parse_known_args()
 
+    # Setup logging
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO, format="[%(levelname)s] %(message)s")
+    logger = logging.getLogger("appimanage")
+
     # Processing in order of occurrence
     for action, value in [
-        (action, value) for action, value in vars(args).items() if value
+        (action, value) for action, value in vars(args).items() if value and action not in ("debug", "force")
     ]:
-        {
+        actions = {
             "set": lambda: set_dir(value, args.move),
             "unset": unset_dir,
-            "startmenu": create_start_menu_shortcuts,
-            "desktop": create_desktop_shortcuts,
+            "startmenu": lambda: create_start_menu_shortcuts(force=args.force),
+            "desktop": lambda: create_desktop_shortcuts(force=args.force),
             "list": list_appimages,
             "remove": lambda: remove_appimage(value),
-        }[action]()
+            "update": lambda: print("[!] --update is not implemented yet. See roadmap in README."),
+        }
+        if action in actions:
+            try:
+                actions[action]()
+            except Exception as e:
+                logger.error(f"Error during '{action}': {e}")
 
 
 if __name__ == "__main__":
