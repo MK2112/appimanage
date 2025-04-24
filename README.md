@@ -43,5 +43,5 @@ Tested on Debian-based distributions.
 - [x] `--move` to enable auto moving of AppImages and link updates
 - [x] Setup CI/CD
 - [x] Expand distribution compatibility
-- [ ] `--update` to update all managed AppImages (requiring some sort of versioning and web referencing)
+- [x] `--update` to update all managed AppImages (requiring some sort of versioning and web referencing)
 - [ ] (Optional) Publish to PyPI
