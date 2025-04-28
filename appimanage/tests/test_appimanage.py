@@ -76,5 +76,40 @@ class TestAppimanage(unittest.TestCase):
             self.assertEqual(mock_config['Settings']['AppImageDir'], tmp_path_new)
             mock_move_appimages.assert_called_once_with(Path(tmp_path_old), Path(tmp_path_new))
 
+    def test_get_dir_error(self):
+        with patch('appimanage.main.read_config', return_value=configparser.ConfigParser()):
+            self.assertIsNone(get_dir())
+
+    def test_unset_dir_error(self):
+        with patch('appimanage.main.read_config', return_value=configparser.ConfigParser()):
+            # Should not raise
+            unset_dir()
+
+    def test_move_appimages_error(self):
+        # Should print error if old_dir does not exist
+        from appimanage.main import move_appimages
+        tmp = Path(self.test_dir) / 'idontexist'
+        new = Path(self.test_dir) / 'new'
+        move_appimages(tmp, new)
+        # Should not raise
+
+    def test_update_shortcuts_logic(self):
+        from appimanage.main import update_shortcuts
+        shortcut_dir = Path(self.test_dir) / 'shortcuts'
+        shortcut_dir.mkdir()
+        shortcut = shortcut_dir / 'test.desktop'
+        old_dir = '/old/path'
+        new_dir = '/new/path'
+        shortcut.write_text(f"[Desktop Entry]\nExec={old_dir}/foo\nIcon={old_dir}/icon.png\n")
+        update_shortcuts(old_dir, new_dir, shortcut_dir)
+        content = shortcut.read_text()
+        self.assertIn(new_dir, content)
+        self.assertNotIn(old_dir, content)
+
+    def test_remove_appimage_not_found(self):
+        from appimanage.main import remove_appimage
+        # Should print not found, not raise
+        remove_appimage('notfound')
+
 if __name__ == "__main__":
     unittest.main()
