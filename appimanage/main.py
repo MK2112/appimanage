@@ -42,7 +42,7 @@ def get_appimages(appimage_dir: Path) -> list:
     for root, _, files in os.walk(appimage_dir):
         for file in files:
             if file.endswith(".AppImage"):
-                appimages.append(os.path.join(root, file))
+                appimages.append(Path(root) / file)
     return appimages
 
 
@@ -51,15 +51,19 @@ def set_dir(new_dir: str, move: bool) -> None:
     old_dir = config.get("Settings", "AppImageDir", fallback=None)
 
     if old_dir == new_dir:
-        # very funny
         print(f"[!] AppImage directory already set to {new_dir}")
+        return
+
+    try:
+        Path(new_dir).mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"[!] Failed to create directory {new_dir}: {e}")
         return
 
     config["Settings"] = {"AppImageDir": new_dir}
     write_config(config)
 
     if old_dir and Path(old_dir).exists() and move:
-        # Recover AppImages if exist, update their desktop entries
         move_appimages(Path(old_dir), Path(new_dir))
 
     print(f"[~] AppImage directory set to {new_dir}")
@@ -70,13 +74,13 @@ def get_dir():
     appimage_dir = config.get("Settings", "AppImageDir", fallback=None)
 
     if not appimage_dir:
-        print("[!] No AppImage directory not set. Set with --set first.")
-        return
+        print("[!] No AppImage directory set. Set with --set first.")
+        return None
 
     appimage_dir = Path(appimage_dir)
     if not appimage_dir.exists():
         print(f"[!] AppImage directory {appimage_dir} does not exist.")
-        return
+        return None
 
     return appimage_dir
 
@@ -86,7 +90,7 @@ def unset_dir():
     old_dir = config.get("Settings", "AppImageDir", fallback=None)
 
     if not old_dir:
-        print("[!] No AppImage directory not set. Set with --set first.")
+        print("[!] No AppImage directory set. Set with --set first.")
         return
 
     config["Settings"] = {"AppImageDir": ""}
@@ -119,17 +123,26 @@ def list_appimages():
 
 
 def move_appimages(old_dir: Path, new_dir: Path):
-    new_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        new_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"[!] Failed to create new directory {new_dir}: {e}")
+        return
+    if not old_dir.exists():
+        print(f"[!] Old directory {old_dir} does not exist.")
+        return
     for file in old_dir.glob("*.AppImage"):
-        shutil.move(str(file), str(new_dir / file.name))
-    # Update start menu entries
+        try:
+            shutil.move(str(file), str(new_dir / file.name))
+        except Exception as e:
+            print(f"[!] Failed to move {file}: {e}")
     update_shortcuts(str(old_dir), str(new_dir), MENU_DIR)
     # Update desktop entries
-    update_shortcuts(
-        str(old_dir),
-        str(new_dir),
-        Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip()),
-    )
+    try:
+        desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
+        update_shortcuts(str(old_dir), str(new_dir), desktop_dir)
+    except Exception as e:
+        print(f"[!] Could not update desktop shortcuts: {e}")
     print(f"[~] Moved AppImages from {old_dir} to {new_dir}")
 
 
@@ -140,9 +153,7 @@ def update_shortcuts(old_dir: str, new_dir: str, shortcut_dir: Path):
         for i, line in enumerate(lines):
             if line.startswith("Exec=") and old_dir in line:
                 lines[i] = line.replace(old_dir, new_dir)
-                updated = (
-                    True  # Mark as updated already, icon is next but not as important
-                )
+                updated = True
             elif line.startswith("Icon=") and old_dir in line:
                 lines[i] = line.replace(old_dir, new_dir)
         if updated:
@@ -248,12 +259,11 @@ def remove_appimage(appimage):
     appimages = get_appimages(appimage_dir)
     found = False
     for path in appimages:
-        # path.stem :: /path/to/XYZ.AppImage -> XYZ
-        if Path(path).stem.lower() == appimage.lower():
+        if path.stem.lower() == appimage.lower():
             found = True
-            appimage_name = Path(path).stem
+            appimage_name = path.stem
             try:
-                Path(path).unlink()
+                path.unlink()
                 print(f"[~] Removed AppImage: {path}")
             except Exception as e:
                 print(f"[!] Failed to remove AppImage {path}: {e}")
