@@ -267,12 +267,20 @@ def remove_appimage(appimage):
                 print(f"[~] Removed AppImage: {path}")
             except Exception as e:
                 print(f"[!] Failed to remove AppImage {path}: {e}")
-            remove_shortcut(appimage_name, MENU_DIR)
+            
+            try:
+                remove_shortcut(appimage_name, MENU_DIR)
+            except Exception as e:
+                print(f"[!] Failed to remove menu shortcut: {e}")
+            
             try:
                 desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
-                remove_shortcut(appimage_name, desktop_dir)
+                try:
+                    remove_shortcut(appimage_name, desktop_dir)
+                except Exception as e:
+                    print(f"[!] Failed to remove desktop shortcut: {e}")
             except Exception as e:
-                print(f"[!] Failed to remove desktop shortcut: {e}")
+                print(f"[!] Failed to get desktop dir or remove desktop shortcut: {e}")
             break
     if not found:
         print(f"{appimage} not found in AppImage directory")
