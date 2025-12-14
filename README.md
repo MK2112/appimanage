@@ -1,6 +1,6 @@
 # appimanage
 
-A CLI tool for integration and management of AppImage programs on Linux systems.
+A CLI-based helper for integration and management of AppImage programs on Linux systems.
 
 ## Features
 
@@ -30,7 +30,7 @@ appimanage --startmenu
 
 ## Supported Distributions
 
-Tested on Debian-based distributions.
+Tested on Debian-based distributions (Debian, Ubuntu, Mint, Kali).
 
 ## Roadmap
 
@@ -38,10 +38,6 @@ Tested on Debian-based distributions.
 - [x] `--unset` to forget the AppImage directory
 - [x] `--list` to display all managed AppImages
 - [x] `--startmenu` to link all managed AppImages to the start menu
-- [x] `--desktop` to create a desktop shortcut for a specific AppImage
-- [x] `--remove` to set the AppImage directory
+- [x] `--desktop` to create desktop shortcuts for all AppImages
+- [x] `--remove` to delete a specific AppImage and its shortcuts
 - [x] `--move` to enable auto moving of AppImages and link updates
-- [x] Setup CI/CD
-- [x] Expand distribution compatibility
-- [x] `--update` to update all managed AppImages (requiring some sort of versioning and web referencing)
-- [ ] (Optional) Publish to PyPI
