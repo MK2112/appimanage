@@ -1,23 +1,78 @@
 #!/usr/bin/env python3
 
 import os
-import distro
+import time
 import shutil
 import argparse
+import logging
 import subprocess
 import configparser
+import textwrap
+import shlex
 from pathlib import Path
 from xdg_base_dirs import xdg_config_home, xdg_data_home
 
 
-debian_based = ["ubuntu", "debian", "linuxmint", "pop", "zorin", "elementary", "kali"]
-
 CONFIG_INI = Path(xdg_config_home()) / "appimanage" / "config.ini"
+MENU_DIR = Path(xdg_data_home()) / "applications"
+MENU_DIR.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger("appimanage")
+logger.addHandler(logging.NullHandler())
 
-if distro.id() in debian_based:
-    MENU_DIR = Path(xdg_data_home()) / "applications"
-else:
-    MENU_DIR = Path("/usr/share/applications")
+ICON_EXTENSIONS = (".png", ".svg", ".xpm", ".ico")
+SHORTCUT_KEYS_TO_UPDATE = ("Exec=", "Icon=", "TryExec=", "Path=", "X-AppImage-Path=")
+
+
+def get_desktop_dir(max_attempts: int = 3, delay: float = 0.2) -> Path | None:
+    """Resolve a user-writable desktop directory, retrying if necessary."""
+    fallback = Path.home() / "Desktop"
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resolved = subprocess.check_output(
+                ["xdg-user-dir", "DESKTOP"], stderr=subprocess.STDOUT
+            ).decode().strip()
+            candidate = Path(resolved)
+        except Exception as err:
+            last_error = err
+            logger.warning(
+                "Attempt %s to resolve desktop directory via xdg-user-dir failed: %s",
+                attempt,
+                err,
+            )
+            candidate = fallback
+
+        if not candidate.exists():
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                logger.info("Created desktop directory at %s", candidate)
+            except Exception as err:
+                last_error = err
+                logger.error("Failed to create desktop directory %s: %s", candidate, err)
+                candidate = None
+
+        if candidate and os.access(candidate, os.W_OK):
+            return candidate
+
+        if candidate:
+            logger.warning(
+                "Desktop directory %s is not writable; retrying...", candidate
+            )
+
+        time.sleep(delay)
+
+    if last_error:
+        logger.error(
+            "Unable to determine a writable desktop directory after %s attempts: %s",
+            max_attempts,
+            last_error,
+        )
+    else:
+        logger.error(
+            "Unable to determine a writable desktop directory after %s attempts.",
+            max_attempts,
+        )
+    return None
 
 # pip uninstall appimanage -y
 # pip cache purge
@@ -31,19 +86,71 @@ def read_config() -> configparser.ConfigParser:
     return config
 
 
+def _is_appimage_file(path: Path) -> bool:
+    return path.is_file() and path.suffix.lower() == ".appimage"
+
+
+def _iter_appimages(appimage_dir: Path):
+    if not appimage_dir.exists():
+        return
+    for candidate in appimage_dir.rglob("*"):
+        if _is_appimage_file(candidate):
+            yield candidate
+
+
+def get_appimages(appimage_dir: Path) -> list[Path]:
+    return sorted(_iter_appimages(appimage_dir), key=lambda path: path.name.lower())
+
+
+def _shortcut_filename(appimage_name: str) -> str:
+    return f"{appimage_name}.desktop"
+
+
+def _existing_icon_path(appimage_path: Path) -> str | None:
+    for ext in ICON_EXTENSIONS:
+        for candidate in (
+            appimage_path.with_suffix(ext),
+            appimage_path.with_name(f"{appimage_path.stem}_icon{ext}"),
+        ):
+            if candidate.exists():
+                return str(candidate)
+    return None
+
+
+def _cleanup_icon_files(appimage_path: Path) -> None:
+    for ext in ICON_EXTENSIONS:
+        candidate = appimage_path.with_name(f"{appimage_path.stem}_icon{ext}")
+        if candidate.exists():
+            try:
+                candidate.unlink()
+            except Exception as err:
+                logger.warning("Failed to remove icon artifact %s: %s", candidate, err)
+
+
+def _build_desktop_entry(name: str, exec_path: Path, icon: str) -> str:
+    quoted_exec = shlex.quote(str(exec_path))
+    icon_value = icon or "application-x-executable"
+    content = textwrap.dedent(
+        f"""
+        [Desktop Entry]
+        Type=Application
+        Name={name}
+        Comment=AppImage managed by appimanage
+        Exec={quoted_exec}
+        TryExec={quoted_exec}
+        Icon={icon_value}
+        Terminal=false
+        Categories=Utility;AppImage;
+        X-AppImage-Path={quoted_exec}
+        """
+    ).strip()
+    return f"{content}\n"
+
+
 def write_config(config: configparser.ConfigParser) -> None:
     CONFIG_INI.parent.mkdir(parents=True, exist_ok=True)
     with open(CONFIG_INI, "w") as configfile:
         config.write(configfile)
-
-
-def get_appimages(appimage_dir: Path) -> list:
-    appimages = []
-    for root, _, files in os.walk(appimage_dir):
-        for file in files:
-            if file.endswith(".AppImage"):
-                appimages.append(Path(root) / file)
-    return appimages
 
 
 def set_dir(new_dir: str, move: bool) -> None:
@@ -131,18 +238,20 @@ def move_appimages(old_dir: Path, new_dir: Path):
     if not old_dir.exists():
         print(f"[!] Old directory {old_dir} does not exist.")
         return
-    for file in old_dir.glob("*.AppImage"):
+    for file in _iter_appimages(old_dir):
         try:
-            shutil.move(str(file), str(new_dir / file.name))
+            relative = file.relative_to(old_dir)
+            destination = new_dir / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(file), str(destination))
         except Exception as e:
             print(f"[!] Failed to move {file}: {e}")
     update_shortcuts(str(old_dir), str(new_dir), MENU_DIR)
-    # Update desktop entries
-    try:
-        desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
+    desktop_dir = get_desktop_dir()
+    if desktop_dir:
         update_shortcuts(str(old_dir), str(new_dir), desktop_dir)
-    except Exception as e:
-        print(f"[!] Could not update desktop shortcuts: {e}")
+    else:
+        logger.warning("Skipped desktop shortcut updates because no writable desktop directory was found.")
     print(f"[~] Moved AppImages from {old_dir} to {new_dir}")
 
 
@@ -151,17 +260,18 @@ def update_shortcuts(old_dir: str, new_dir: str, shortcut_dir: Path):
         updated = False
         lines = entry.read_text().splitlines()
         for i, line in enumerate(lines):
-            if line.startswith("Exec=") and old_dir in line:
+            if line.startswith(SHORTCUT_KEYS_TO_UPDATE) and old_dir in line:
                 lines[i] = line.replace(old_dir, new_dir)
                 updated = True
-            elif line.startswith("Icon=") and old_dir in line:
-                lines[i] = line.replace(old_dir, new_dir)
         if updated:
-            entry.write_text("\n".join(lines))
+            entry.write_text("\n".join(lines) + "\n")
 
 
 def get_appimage_icon(appimage_path: Path):
     """Extract icon from AppImage, fallback to default if extraction fails."""
+    existing = _existing_icon_path(appimage_path)
+    if existing:
+        return existing
     icon = "application-x-executable"
     extract_dir = appimage_path.parent / "squashfs-root"
     try:
@@ -171,7 +281,7 @@ def get_appimage_icon(appimage_path: Path):
             capture_output=True,
             cwd=str(appimage_path.parent),
         )
-        for ext in [".png", ".svg", ".xpm", ".ico"]:
+        for ext in ICON_EXTENSIONS:
             icon_files = list(extract_dir.rglob(f"*{ext}")) + list(
                 extract_dir.rglob(f"*{ext.upper()}")
             )
@@ -194,8 +304,11 @@ def get_appimage_icon(appimage_path: Path):
 def create_shortcut(appimage_path: Path, shortcut_dir: Path, force: bool = False):
     """Create a .desktop shortcut for the given AppImage in the given directory."""
     name = appimage_path.stem
-    icon = get_appimage_icon(appimage_path)
-    shortcut = shortcut_dir / f"{name}.desktop"
+    icon = _existing_icon_path(appimage_path) or get_appimage_icon(appimage_path)
+    shortcut = shortcut_dir / _shortcut_filename(name)
+    exec_path = appimage_path.resolve()
+    entry_content = _build_desktop_entry(name, exec_path, icon)
+    temporary_shortcut = shortcut.with_suffix(".desktop.tmp")
     try:
         shortcut_dir.mkdir(parents=True, exist_ok=True)
         if shortcut.exists():
@@ -204,12 +317,14 @@ def create_shortcut(appimage_path: Path, shortcut_dir: Path, force: bool = False
             else:
                 print(f"[~] Shortcut {shortcut} already exists. Use --force to overwrite.")
                 return
-        entry_content = f"""[Desktop Entry]\nName={name}\nExec={appimage_path}\nIcon={icon}\nType=Application\nCategories=Utility;\n"""
-        shortcut.write_text(entry_content)
-        os.chmod(shortcut, 0o755)
+        temporary_shortcut.write_text(entry_content)
+        os.chmod(temporary_shortcut, 0o755)
+        temporary_shortcut.replace(shortcut)
         print(f"[~] Created shortcut: {shortcut}")
     except Exception as e:
         print(f"[!] Failed to create shortcut for {appimage_path}: {e}")
+        if temporary_shortcut.exists():
+            temporary_shortcut.unlink(missing_ok=True)
 
 
 def create_start_menu_shortcuts(force: bool = False):
@@ -228,10 +343,9 @@ def create_desktop_shortcuts(force: bool = False):
     if not appimage_dir:
         print("[!] No AppImage directory set.")
         return
-    try:
-        desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
-    except Exception as e:
-        print(f"[!] Could not determine desktop directory: {e}")
+    desktop_dir = get_desktop_dir()
+    if not desktop_dir:
+        print("[!] Could not determine a writable desktop directory.")
         return
     for appimage in get_appimages(appimage_dir):
         create_shortcut(appimage, desktop_dir, force=force)
@@ -239,7 +353,7 @@ def create_desktop_shortcuts(force: bool = False):
 
 def remove_shortcut(appimage: str, shortcut_dir: Path):
     """Remove a .desktop shortcut for the given appimage name from the directory."""
-    shortcut = shortcut_dir / f"{appimage}.desktop"
+    shortcut = shortcut_dir / _shortcut_filename(appimage)
     try:
         if shortcut.exists():
             shortcut.unlink()
@@ -265,6 +379,7 @@ def remove_appimage(appimage):
             try:
                 path.unlink()
                 print(f"[~] Removed AppImage: {path}")
+                _cleanup_icon_files(path)
             except Exception as e:
                 print(f"[!] Failed to remove AppImage {path}: {e}")
             
@@ -273,14 +388,14 @@ def remove_appimage(appimage):
             except Exception as e:
                 print(f"[!] Failed to remove menu shortcut: {e}")
             
-            try:
-                desktop_dir = Path(subprocess.check_output(["xdg-user-dir", "DESKTOP"]).decode().strip())
+            desktop_dir = get_desktop_dir()
+            if desktop_dir:
                 try:
                     remove_shortcut(appimage_name, desktop_dir)
                 except Exception as e:
                     print(f"[!] Failed to remove desktop shortcut: {e}")
-            except Exception as e:
-                print(f"[!] Failed to get desktop dir or remove desktop shortcut: {e}")
+            else:
+                logger.warning("Skipped removing desktop shortcut for %s because no writable desktop directory was found.", appimage_name)
             break
     if not found:
         print(f"{appimage} not found in AppImage directory")
