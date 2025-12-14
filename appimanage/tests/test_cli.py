@@ -1,9 +1,5 @@
 import subprocess
 import sys
-import tempfile
-import shutil
-from pathlib import Path
-import os
 import pytest
 
 APPIMANAGE = [sys.executable, '-m', 'appimanage.main']
@@ -18,7 +14,7 @@ def temp_appimage_dir(tmp_path):
 
 def run_cli(args, cwd=None, env=None):
     result = subprocess.run(
-        ["appimanage"] + args,
+        APPIMANAGE + args,
         cwd=cwd,
         env=env,
         stdout=subprocess.PIPE,
