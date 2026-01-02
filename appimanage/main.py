@@ -286,7 +286,8 @@ def get_appimage_icon(appimage_path: Path):
                 extract_dir.rglob(f"*{ext.upper()}")
             )
             if icon_files:
-                icon_dest = appimage_path.with_name(f"{appimage_path.stem}_icon{ext}")
+                actual_ext = icon_files[0].suffix
+                icon_dest = appimage_path.with_name(f"{appimage_path.stem}_icon{actual_ext}")
                 shutil.copy2(icon_files[0], icon_dest)
                 icon = str(icon_dest)
                 break
